@@ -31,7 +31,6 @@ df = df.apply(pd.to_numeric, errors="coerce").astype(float)
 df = df.fillna(df.median(numeric_only=True))
 df = df.fillna(0)
 
-# فصل X و y
 X = df.drop(columns=["income"])
 y = df["income"]
 
@@ -58,13 +57,15 @@ report = classification_report(y_test, y_pred, output_dict=True)
 # =============== إعداد السيرفر =================
 app = FastAPI()
 
+# ✅ تفعيل CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # ممكن تحط دومينك بدل *
+    allow_origins=["*"],  # أي دومين يقدر يطلب البيانات
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.get("/model_info")
 async def model_info():
@@ -72,16 +73,17 @@ async def model_info():
         "accuracy": accuracy,
         "confusion_matrix": conf_matrix,
         "classification_report": report,
-        # ✅ income مش بيتعرض هنا
+        # remove "income" from options
         "categorical_options": {k: v for k, v in categorical_options.items() if k != "income"},
         "numeric_columns": [col for col in X.columns if col not in categorical_options]
     })
+
 
 @app.post("/predict")
 async def predict(request: Request):
     data = await request.json()
     try:
-        # تجهيز الداتا
+        # تحويل القيم النصية لأرقام
         row = {}
         for col in X.columns:
             if col in categorical_options:
@@ -100,6 +102,9 @@ async def predict(request: Request):
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
 
+
 if __name__ == "__main__":
-    # ✅ مهم لـ Railway
-    uvicorn.run("api:app", host="0.0.0.0", port=8000)
+    # ✅ في Railway لازم يكون host=0.0.0.0 و port=$PORT
+    import os
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("api:app", host="0.0.0.0", port=port, reload=True)
