@@ -31,6 +31,7 @@ df = df.apply(pd.to_numeric, errors="coerce").astype(float)
 df = df.fillna(df.median(numeric_only=True))
 df = df.fillna(0)
 
+# فصل X و y
 X = df.drop(columns=["income"])
 y = df["income"]
 
@@ -59,7 +60,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  
+    allow_origins=["*"],  # ممكن تحط دومينك بدل *
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -71,21 +72,19 @@ async def model_info():
         "accuracy": accuracy,
         "confusion_matrix": conf_matrix,
         "classification_report": report,
-        # remove "income" from options
+        # ✅ income مش بيتعرض هنا
         "categorical_options": {k: v for k, v in categorical_options.items() if k != "income"},
         "numeric_columns": [col for col in X.columns if col not in categorical_options]
     })
-
 
 @app.post("/predict")
 async def predict(request: Request):
     data = await request.json()
     try:
-        # تحويل القيم النصية لأرقام
+        # تجهيز الداتا
         row = {}
         for col in X.columns:
             if col in categorical_options:
-                # تحويل النص للرقم
                 row[col] = encoders[col].transform([data[col]])[0]
             else:
                 row[col] = float(data[col])
@@ -95,13 +94,12 @@ async def predict(request: Request):
         df_input = scaler.transform(df_input)
 
         prediction = model.predict(df_input)[0]
-        # رجع النص الأصلي للتوقع
         prediction_label = encoders["income"].inverse_transform([int(prediction)])[0]
 
         return JSONResponse(content={"prediction": prediction_label})
     except Exception as e:
         return JSONResponse(content={"error": str(e)}, status_code=400)
 
-
 if __name__ == "__main__":
-    uvicorn.run("api:app", host="127.0.0.1", port=8000, reload=True)
+    # ✅ مهم لـ Railway
+    uvicorn.run("api:app", host="0.0.0.0", port=8000)
